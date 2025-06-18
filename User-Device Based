@@ -1,0 +1,61 @@
+// This script will step up authentication and send email notification in case of
+// a user being logging in from a new device (identified by a cookie).
+
+// Amount of time in seconds to remember a device. Set to 2 years below.
+var deviceRememberPeriod = 60 * 60 * 24 * 365 * 2;
+
+// Cookie name to be set
+var cookieName = 'deviceAuth';
+
+// Whether to send a notification on new device login
+var sendNotification = true;
+
+// Whether to step up authentication for new device login
+var stepUpAuthentication = true;
+
+// Email template to be used for new device login notification
+var emailTemplate = 'UnseenDeviceLogin';
+
+
+var onLoginRequest = function(context) {
+    executeStep(1, {
+        onSuccess: function (context) {
+            subject = context.currentKnownSubject;
+            if (!validateCookie(context, subject)) {
+                Log.debug('New device login with ' + subject.uniqueId);
+
+                if (sendNotification === true) {
+                    var templatePlaceholders = {
+                        'username': subject.uniqueId,
+                        'login-time': new Date().toUTCString()
+                    };
+                    var isSent = sendEmail(subject, emailTemplate, templatePlaceholders);
+                    if (isSent) {
+                         Log.debug('New device login notification sent to ' + subject.uniqueId);
+                    } else {
+                         Log.debug('New device login notification sending failed to ' + subject.uniqueId);
+                    }
+                }
+
+                if (stepUpAuthentication === true) {
+                    Log.debug('Stepping up authentication due to a new device login with ' + subject.uniqueId);
+                    executeStep(2, {
+                        onSuccess: function (context) {
+                            setCookie(context.response, cookieName, subject.uniqueId, {
+                                'sign': true,
+                                'max-age': deviceRememberPeriod,
+                                'sameSite': 'LAX'
+                            });
+                        }
+                    });
+                }
+            }
+        }
+    });
+};
+
+//Validate if the user has a valid cookie with the value as subject's username
+var validateCookie = function(context, subject) {
+    var cookieVal = getCookieValue(context.request, cookieName, {'validateSignature': true});
+    return subject.uniqueId === cookieVal;
+};
