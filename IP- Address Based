@@ -1,0 +1,63 @@
+// Configure the network ranges here
+var corpNetwork = ['192.168.1.0/24', '10.100.0.0/16'];
+
+var onLoginRequest = function(context) {
+    executeStep(1, {
+        onSuccess: function (context) {
+            var user = context.currentKnownSubject;
+            // Extracting the origin IP of the request
+            var loginIp = context.request.ip;
+            Log.info('User: ' + user.username + ' logged in from IP: ' + loginIp);
+            // Checking if the IP is within the allowed range
+            if (!isCorporateIP(loginIp, corpNetwork)) {
+                executeStep(2);
+            }
+        }
+    });
+};
+
+// Function to convert ip address string to long value
+var convertIpToLong = function(ip) {
+    var components = ip.split('.');
+    if (components) {
+        var ipAddr = 0, pow = 1, i = 3;
+        return getIpAddrInLong(ipAddr, i, pow, components);
+    } else {
+        return -1;
+    }
+};
+
+// Function to convert ip address string to long value
+var getIpAddrInLong = function(ipAddr, i, pow, components) {
+    if (i >= 0) {
+        ipAddr += pow * parseInt(components[i]);
+        pow *= 256;
+        i -= 1;
+        return getIpAddrInLong(ipAddr, i, pow, components);
+    } else {
+        return ipAddr;
+    }
+};
+
+// Function to check if the ip address is within the given subnet
+var isCorporateIP = function (ip, subnets, i) {
+    if (i === undefined) {
+        i = 0;
+    }
+    if (i < subnets.length) {
+        var subnetComponents = subnets[i].split('/');
+        var minHost = convertIpToLong(subnetComponents[0]);
+        var ipAddr = convertIpToLong(ip);
+        var mask = subnetComponents[1];
+        if (subnetComponents && minHost >= 0) {
+            var numHosts = Math.pow(2, 32 - parseInt(mask));
+            if ((ipAddr >= minHost) && (ipAddr <= minHost + numHosts - 1)) {
+                return true;
+            }
+        }
+        i++;
+        return isCorporateIP(ip, subnets, i);
+    } else {
+        return false;
+    }
+};
