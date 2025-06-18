@@ -1,0 +1,36 @@
+// This script will step up authentication for any user who has exceeded 3 invalid login attempts continuously.
+// This variable is used to define the number of invalid attempts allowed before prompting the second facto.
+var invalidAttemptsToStepup = 3;
+
+var failedLoginAttemptsBeforeSuccessClaim= 'http://wso2.org/claims/identity/failedLoginAttemptsBeforeSuccess';
+var onLoginRequest = function(context) {
+  doLogin(context);
+};
+
+var doLogin = function(context) {
+   executeStep(1, {
+       onSuccess : function(context){
+           var user = context.steps[1].subject;
+           if (isExceedInvalidAttempts(user)) {
+               executeStep(2, {
+                 onSuccess : function(context) {
+                   var user = context.steps[1].subject;
+                   user.localClaims[failedLoginAttemptsBeforeSuccessClaim] = "0";
+                 }
+               });
+           }
+       },
+       onFail : function(context) {
+           // Retry the login..
+           doLogin(context);
+       }
+   });
+};
+
+var isExceedInvalidAttempts  = function(user) {
+   if (user.localClaims[failedLoginAttemptsBeforeSuccessClaim] >= invalidAttemptsToStepup) {
+       return true;
+   } else {
+       return false;
+   }
+};
